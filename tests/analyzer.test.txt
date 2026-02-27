@@ -1,0 +1,44 @@
+import * as ts from "typescript"
+import { Analyzer, ClassInfo } from "../src/analyzer"
+import { TooManyDependenciesRule } from "../src/srp"
+import { DIPViolationRule } from "../src/DIPViolationRule"
+import * as path from "path"
+
+function createAnalyzerFromFixture(fixtureFile: string): Analyzer {
+  const tsconfigPath = path.resolve(__dirname, fixtureFile)
+  return new Analyzer(tsconfigPath)
+}
+
+describe("SOLID rules", () => {
+  it("detects too many dependencies", () => {
+    const analyzer = createAnalyzerFromFixture("examples/bad.ts")
+    analyzer.registerRule(new TooManyDependenciesRule(2)) // threshold 2
+    const warnings = analyzer.runRules()
+    expect(warnings).toContain(
+      expect.stringContaining("UserService") // should detect >2 dependencies
+    )
+  })
+
+  it("does not trigger too many dependencies for compliant class", () => {
+    const analyzer = createAnalyzerFromFixture("fixtures/good.ts")
+    analyzer.registerRule(new TooManyDependenciesRule(3)) // threshold 3
+    const warnings = analyzer.runRules()
+    expect(warnings).toHaveLength(0)
+  })
+
+  it("detects DIP violations", () => {
+    const analyzer = createAnalyzerFromFixture("examples/bad.ts")
+    analyzer.registerRule(new DIPViolationRule(analyzer.program, analyzer.typeChecker))
+    const warnings = analyzer.runRules()
+    expect(warnings).toContain(
+      expect.stringContaining("UserRepository") // concrete class dependency
+    )
+  })
+
+  it("does not trigger DIP violation for interfaces", () => {
+    const analyzer = createAnalyzerFromFixture("examples/good.ts")
+    analyzer.registerRule(new DIPViolationRule(analyzer.program, analyzer.typeChecker))
+    const warnings = analyzer.runRules()
+    expect(warnings).toHaveLength(0)
+  })
+})
